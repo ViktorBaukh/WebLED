@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 LED Controller</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+    #status { margin-top: 20px; font-size: 18px; color: green; }
+  </style>
+</head>
+<body>
+
+  <h1>ESP32 LED Controller</h1>
+  <button id="connectButton">Connect to ESP32</button>
+  <button id="onButton" disabled>Turn LED On</button>
+  <button id="offButton" disabled>Turn LED Off</button>
+
+  <div id="status">Status: Disconnected</div>
+
+  <script>
+    let device;
+    let ledCharacteristic;
+
+    document.getElementById('connectButton').addEventListener('click', async () => {
+      try {
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
+        });
+        
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
+        ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
+
+        document.getElementById('status').textContent = "Status: Connected";
+        document.getElementById('onButton').disabled = false;
+        document.getElementById('offButton').disabled = false;
+      } catch (error) {
+        console.error('Connection failed!', error);
+      }
+    });
+
+    document.getElementById('onButton').addEventListener('click', async () => {
+      if (ledCharacteristic) {
+        await ledCharacteristic.writeValue(new TextEncoder().encode("ON"));
+      }
+    });
+
+    document.getElementById('offButton').addEventListener('click', async () => {
+      if (ledCharacteristic) {
+        await ledCharacteristic.writeValue(new TextEncoder().encode("OFF"));
+      }
+    });
+
+    // Disconnect event
+    if (device) {
+      device.addEventListener('gattserverdisconnected', () => {
+        document.getElementById('status').textContent = "Status: Disconnected";
+        document.getElementById('onButton').disabled = true;
+        document.getElementById('offButton').disabled = true;
+      });
+    }
+  </script>
+
+</body>
+</html>
