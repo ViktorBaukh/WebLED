@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESP32 LED Controller</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; }
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
     button { padding: 10px 20px; margin: 10px; font-size: 16px; }
     #status { margin-top: 20px; font-size: 18px; color: green; }
   </style>
@@ -23,44 +23,65 @@
     let device;
     let ledCharacteristic;
 
-    document.getElementById('connectButton').addEventListener('click', async () => {
+    // Function to handle connection and service discovery
+    async function connectToDevice() {
       try {
         device = await navigator.bluetooth.requestDevice({
           filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
         });
-        
+
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
         ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
 
+        // Update UI for connected state
         document.getElementById('status').textContent = "Status: Connected";
         document.getElementById('onButton').disabled = false;
         document.getElementById('offButton').disabled = false;
+
+        monitorConnection(); // Start monitoring the connection status
       } catch (error) {
         console.error('Connection failed!', error);
       }
-    });
+    }
+
+    // Function to handle disconnection event
+    function onDisconnected() {
+      document.getElementById('status').textContent = "Status: Disconnected";
+      document.getElementById('onButton').disabled = true;
+      document.getElementById('offButton').disabled = true;
+      console.log("Disconnected from the device");
+    }
+
+    // Function to periodically check connection status
+    async function monitorConnection() {
+      while (device && device.gatt.connected) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      // Update UI if disconnected
+      if (!device.gatt.connected) {
+        onDisconnected();
+      }
+    }
+
+    // Event listeners for Connect, LED On, and LED Off buttons
+    document.getElementById('connectButton').addEventListener('click', connectToDevice);
 
     document.getElementById('onButton').addEventListener('click', async () => {
       if (ledCharacteristic) {
         await ledCharacteristic.writeValue(new TextEncoder().encode("ON"));
+        console.log("LED turned on");
       }
     });
 
     document.getElementById('offButton').addEventListener('click', async () => {
       if (ledCharacteristic) {
         await ledCharacteristic.writeValue(new TextEncoder().encode("OFF"));
+        console.log("LED turned off");
       }
     });
-
-    // Disconnect event
-    if (device) {
-      device.addEventListener('gattserverdisconnected', () => {
-        document.getElementById('status').textContent = "Status: Disconnected";
-        document.getElementById('onButton').disabled = true;
-        document.getElementById('offButton').disabled = true;
-      });
-    }
   </script>
 
 </body>

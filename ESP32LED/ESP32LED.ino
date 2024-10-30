@@ -11,6 +11,9 @@ BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
 
+unsigned long previousMillis = 0; // Timer for periodic notifications
+const long interval = 5000; // Interval to send notification (in milliseconds)
+
 // UUIDs for BLE service and characteristics
 #define SERVICE_UUID "12345678-1234-1234-1234-123456789abc"
 #define CHARACTERISTIC_UUID "87654321-4321-4321-4321-cba987654321"
@@ -69,6 +72,9 @@ void setup() {
                     );
 
   pCharacteristic->setCallbacks(new LEDControlCallbacks());
+  // Add a notification descriptor to enable notifications
+  pCharacteristic->addDescriptor(new BLE2902());
+
   pService->start();
 
   // Start BLE advertising
@@ -96,4 +102,17 @@ void setup() {
 
 void loop() {
   // Add any logic for continuous operation
+    // Check if a device is connected
+  if (deviceConnected) {
+    unsigned long currentMillis = millis();
+    
+    // Send a notification every 'interval' milliseconds to keep connection alive
+    if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
+      
+      // Send notification data (e.g., status message or any value)
+      pCharacteristic->setValue("KEEP_ALIVE"); // Any arbitrary message
+      pCharacteristic->notify(); // Sends a notification to the client
+    }
+  }
 }
