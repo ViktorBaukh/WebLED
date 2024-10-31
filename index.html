@@ -20,9 +20,14 @@
 
   <div id="status">Status: Disconnected</div>
   <div id="notifications">Notification: None</div>
-  <div id="version">App Version: 0.4</div> <!-- Version added here -->
+  <div id="version"></div> <!-- Version div -->
 
   <script>
+    const appVersion = "0.4"; // Define the app version here
+
+    // Display the version in the HTML
+    document.getElementById('version').textContent = `App Version: ${appVersion}`;
+
     let device;
     let ledCharacteristic;
 
