@@ -27,6 +27,7 @@
     // Function to handle connection and service discovery
     async function connectToDevice() {
       try {
+        // Request and connect to Bluetooth device
         device = await navigator.bluetooth.requestDevice({
           filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
         });
@@ -37,19 +38,30 @@
         const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
         ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
 
+        // Add a short delay before enabling notifications
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         // Subscribe to notifications from the ESP32
         await ledCharacteristic.startNotifications();
         ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
-        // Update UI for connected state
-        document.getElementById('status').textContent = "Status: Connected";
-        document.getElementById('onButton').disabled = false;
-        document.getElementById('offButton').disabled = false;
+        // Update UI to show connected state
+        updateUIOnConnect();
 
         monitorConnection(); // Start monitoring the connection status
       } catch (error) {
         console.error('Connection failed!', error);
+        alert("Connection failed. Ensure Bluetooth is enabled and retry.");
       }
+    }
+
+    // Update the UI to indicate connection
+    function updateUIOnConnect() {
+      document.getElementById('status').textContent = "Status: Connected";
+      document.getElementById('connectButton').disabled = true;
+      document.getElementById('onButton').disabled = false;
+      document.getElementById('offButton').disabled = false;
+      console.log("Device connected");
     }
 
     // Function to handle notifications from the ESP32
@@ -62,6 +74,7 @@
     // Function to handle disconnection event
     function onDisconnected() {
       document.getElementById('status').textContent = "Status: Disconnected";
+      document.getElementById('connectButton').disabled = false;
       document.getElementById('onButton').disabled = true;
       document.getElementById('offButton').disabled = true;
       console.log("Disconnected from the device");
