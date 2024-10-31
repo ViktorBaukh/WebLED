@@ -14,10 +14,11 @@
 
   <h1>ESP32 LED Controller</h1>
   <button id="connectButton">Connect to ESP32</button>
-  <button id="onButton" disabled>LED On</button>
-  <button id="offButton" disabled>LED Off</button>
+  <button id="onButton" disabled>Turn LED On</button>
+  <button id="offButton" disabled>Turn LED Off</button>
 
   <div id="status">Status: Disconnected</div>
+  <div id="notifications">Notification: None</div>
 
   <script>
     let device;
@@ -36,6 +37,10 @@
         const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
         ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
 
+        // Subscribe to notifications from the ESP32
+        await ledCharacteristic.startNotifications();
+        ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
         // Update UI for connected state
         document.getElementById('status').textContent = "Status: Connected";
         document.getElementById('onButton').disabled = false;
@@ -45,6 +50,13 @@
       } catch (error) {
         console.error('Connection failed!', error);
       }
+    }
+
+    // Function to handle notifications from the ESP32
+    function handleNotifications(event) {
+      const value = new TextDecoder().decode(event.target.value);
+      document.getElementById('notifications').textContent = "Notification: " + value;
+      console.log("Notification received: ", value);
     }
 
     // Function to handle disconnection event
@@ -60,7 +72,6 @@
       while (device && device.gatt.connected) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      // Update UI if disconnected
       if (!device.gatt.connected) {
         onDisconnected();
       }

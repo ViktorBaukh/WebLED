@@ -2,17 +2,13 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <string> // Include this if you haven't already
-
+#include <String.h>
 
 #define LED_PIN 26 // GPIO pin for the LED
 
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
-
-unsigned long previousMillis = 0; // Timer for periodic notifications
-const long interval = 5000; // Interval to send notification (in milliseconds)
 
 // UUIDs for BLE service and characteristics
 #define SERVICE_UUID "12345678-1234-1234-1234-123456789abc"
@@ -22,62 +18,64 @@ class MyServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
       digitalWrite(LED_PIN, HIGH); // Optional: Turn LED on when connected
+      
+      // Send initial notification to indicate connection
+      if (pCharacteristic) {
+          pCharacteristic->setValue("CONNECTED");
+          pCharacteristic->notify();
+      }
     }
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       digitalWrite(LED_PIN, LOW); // Optional: Turn LED off when disconnected
+      pServer->startAdvertising(); // Restart advertising for new connections
     }
 };
 
-class LEDControlCallbacks: public BLECharacteristicCallbacks {
+class LEDControlCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
+        // Use Arduino String type for compatibility
+        String value = pCharacteristic->getValue().c_str();
         
-        String value = pCharacteristic->getValue();
-        std::string stdValue = value.c_str();
-
-        if (stdValue == "ON") {
+        if (value == "ON") {
             digitalWrite(LED_PIN, HIGH); // Turn LED on
+            pCharacteristic->setValue("LED ON"); // Update characteristic value
+            pCharacteristic->notify(); // Notify client of the new LED state
         } else if (value == "OFF") {
             digitalWrite(LED_PIN, LOW); // Turn LED off
+            pCharacteristic->setValue("LED OFF"); // Update characteristic value
+            pCharacteristic->notify(); // Notify client of the new LED state
         }
     }
 };
+
 
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
 
   // Create BLE Device and Server
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
   BLEDevice::init("ESP32_LED_Controller");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
-  delay(500);
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
-  // Create BLE Service and Characteristic
+  // Create BLE Service and Characteristic with Notify Property
   BLEService *pService = pServer->createService(SERVICE_UUID);
   pCharacteristic = pService->createCharacteristic(
                       CHARACTERISTIC_UUID,
                       BLECharacteristic::PROPERTY_READ |
-                      BLECharacteristic::PROPERTY_WRITE
+                      BLECharacteristic::PROPERTY_WRITE |
+                      BLECharacteristic::PROPERTY_NOTIFY
                     );
 
   pCharacteristic->setCallbacks(new LEDControlCallbacks());
+
   // Add a notification descriptor to enable notifications
   pCharacteristic->addDescriptor(new BLE2902());
-
   pService->start();
 
-  // Start BLE advertising
+  // Start advertising for connections
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
@@ -85,34 +83,8 @@ void setup() {
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("Waiting for a client connection...");
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
-  delay(500);
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
-  delay(500);
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);
-  digitalWrite(LED_PIN, LOW);
-
-
 }
 
 void loop() {
-  // Add any logic for continuous operation
-    // Check if a device is connected
-  if (deviceConnected) {
-    unsigned long currentMillis = millis();
-    
-    // Send a notification every 'interval' milliseconds to keep connection alive
-    if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-      
-      // Send notification data (e.g., status message or any value)
-      pCharacteristic->setValue("KEEP_ALIVE"); // Any arbitrary message
-      pCharacteristic->notify(); // Sends a notification to the client
-    }
-  }
+  // No need to add code in loop() for notifications, handled in callbacks
 }
