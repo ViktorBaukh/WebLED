@@ -23,7 +23,7 @@
   <div id="version"></div> <!-- Version div -->
 
   <script>
-    const appVersion = "0.4"; // Define the app version here
+    const appVersion = "0.41"; // Define the app version here
 
     // Display the version in the HTML
     document.getElementById('version').textContent = `App Version: ${appVersion}`;
@@ -32,34 +32,69 @@
     let ledCharacteristic;
 
     // Function to handle connection and service discovery
-    async function connectToDevice() {
+async function connectToDevice() {
+  try {
+    // Step 1: Request and connect to Bluetooth device
+    console.log("Requesting Bluetooth device...");
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
+    });
+
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    console.log("Device selected:", device.name);
+
+    // Step 2: Connect to GATT server
+    try {
+      console.log("Connecting to GATT server...");
+      const server = await device.gatt.connect();
+      console.log("GATT server connected");
+      
+      // Step 3: Get primary service
       try {
-        // Request and connect to Bluetooth device
-        device = await navigator.bluetooth.requestDevice({
-          filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
-        });
-
-        device.addEventListener('gattserverdisconnected', onDisconnected);
-
-        const server = await device.gatt.connect();
+        console.log("Getting primary service...");
         const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
-        ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
+        console.log("Primary service obtained");
 
-        // Add a short delay before enabling notifications
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Step 4: Get LED characteristic
+        try {
+          console.log("Getting LED characteristic...");
+          ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
+          console.log("LED characteristic obtained");
 
-        // Subscribe to notifications from the ESP32
-        await ledCharacteristic.startNotifications();
-        ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+          // Step 5: Add a delay before enabling notifications (to ensure stability on mobile)
+          await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Update UI to show connected state
-        updateUIOnConnect();
+          // Step 6: Start notifications
+          console.log("Starting notifications...");
+          await ledCharacteristic.startNotifications();
+          ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+          console.log("Notifications started");
 
-        monitorConnection(); // Start monitoring the connection status
+          // Update UI to show connected state
+          updateUIOnConnect();
+          monitorConnection(); // Start monitoring the connection status
+
+        } catch (error) {
+          console.error("Failed to get LED characteristic", error);
+          alert("Failed to get LED characteristic.");
+        }
+
       } catch (error) {
-        console.error('Connection failed!', error);
-        alert("Connection failed. Ensure Bluetooth is enabled and retry.");
+        console.error("Failed to get primary service", error);
+        alert("Failed to get primary service. Ensure the correct service UUID is specified.");
       }
+
+    } catch (error) {
+      console.error("Failed to connect to GATT server", error);
+      alert("Failed to connect to GATT server. Please retry.");
+    }
+
+  } catch (error) {
+    console.error("Failed to request Bluetooth device", error);
+    alert("Failed to request Bluetooth device. Please enable Bluetooth and retry.");
+  }
+}
+
     }
 
     // Update the UI to indicate connection
