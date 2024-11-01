@@ -20,82 +20,99 @@
   <div id="status">Status: Disconnected</div>
   <div id="notifications">Notification: None</div>
 
-  <script>
-    let device;
-    let ledCharacteristic;
+  <script><script>
+  let device;
+  let ledCharacteristic;
 
-    // Function to handle connection and service discovery
-    async function connectToDevice() {
-      try {
-        device = await navigator.bluetooth.requestDevice({
-          filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
-        });
+  async function connectToDevice() {
+    try {
+      // Request device with service UUID
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['12345678-1234-1234-1234-123456789abc'] }]
+      });
 
-        device.addEventListener('gattserverdisconnected', onDisconnected);
+      // Add a listener for disconnection events
+      device.addEventListener('gattserverdisconnected', onDisconnected);
 
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
-        ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
+      // Attempt to connect
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
+      ledCharacteristic = await service.getCharacteristic('87654321-4321-4321-4321-cba987654321');
 
-        // Subscribe to notifications from the ESP32
-        await ledCharacteristic.startNotifications();
-        ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+      // Start receiving notifications
+      await ledCharacteristic.startNotifications();
+      ledCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
-        // Update UI for connected state
-        document.getElementById('status').textContent = "Status: Connected";
-        document.getElementById('onButton').disabled = false;
-        document.getElementById('offButton').disabled = false;
+      // Update UI for connected state
+      updateConnectionStatus(true);
+      monitorConnection();
 
-        monitorConnection(); // Start monitoring the connection status
-      } catch (error) {
-        console.error('Connection failed!', error);
-      }
+    } catch (error) {
+      console.error('Connection failed!', error);
+      updateConnectionStatus(false, true); // Notify user of failure
     }
+  }
 
-    // Function to handle notifications from the ESP32
-    function handleNotifications(event) {
-      const value = new TextDecoder().decode(event.target.value);
-      document.getElementById('notifications').textContent = "Notification: " + value;
-      console.log("Notification received: ", value);
-    }
-
-    // Function to handle disconnection event
-    function onDisconnected() {
-      document.getElementById('status').textContent = "Status: Disconnected";
-      //document.getElementById('onButton').disabled = true;
+  function updateConnectionStatus(isConnected, isError = false) {
+    const statusText = document.getElementById('status');
+    if (isConnected) {
+      statusText.textContent = "Status: Connected";
       document.getElementById('onButton').disabled = false;
-      //document.getElementById('offButton').disabled = true;
       document.getElementById('offButton').disabled = false;
-      console.log("Disconnected from the device");
+      statusText.style.color = "green";
+    } else {
+      statusText.textContent = isError ? "Connection Failed! Retry" : "Status: Disconnected";
+      document.getElementById('onButton').disabled = true;
+      document.getElementById('offButton').disabled = true;
+      statusText.style.color = isError ? "red" : "black";
     }
+  }
 
-    // Function to periodically check connection status
-    async function monitorConnection() {
-      while (device && device.gatt.connected) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      if (!device.gatt.connected) {
-        onDisconnected();
-      }
+  function handleNotifications(event) {
+    const value = new TextDecoder().decode(event.target.value);
+    document.getElementById('notifications').textContent = "Notification: " + value;
+    console.log("Notification received: ", value);
+  }
+
+  function onDisconnected() {
+    console.log("Disconnected from the device");
+    updateConnectionStatus(false);
+  }
+
+  async function monitorConnection() {
+    while (device && device.gatt.connected) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
+    if (!device.gatt.connected) {
+      onDisconnected();
+    }
+  }
 
-    // Event listeners for Connect, LED On, and LED Off buttons
-    document.getElementById('connectButton').addEventListener('click', connectToDevice);
+  document.getElementById('connectButton').addEventListener('click', connectToDevice);
 
-    document.getElementById('onButton').addEventListener('click', async () => {
-      if (ledCharacteristic) {
+  document.getElementById('onButton').addEventListener('click', async () => {
+    if (ledCharacteristic) {
+      try {
         await ledCharacteristic.writeValue(new TextEncoder().encode("ON"));
         console.log("LED turned on");
+      } catch (error) {
+        console.error("Error turning LED on:", error);
       }
-    });
+    }
+  });
 
-    document.getElementById('offButton').addEventListener('click', async () => {
-      if (ledCharacteristic) {
+  document.getElementById('offButton').addEventListener('click', async () => {
+    if (ledCharacteristic) {
+      try {
         await ledCharacteristic.writeValue(new TextEncoder().encode("OFF"));
         console.log("LED turned off");
+      } catch (error) {
+        console.error("Error turning LED off:", error);
       }
-    });
-  </script>
+    }
+  });
+</script>
+
 
 </body>
 </html>
