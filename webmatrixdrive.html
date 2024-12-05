@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Matrix Controller</title>
+    <style>
+        .led-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            gap: 5px;
+        }
+        .led {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #000;
+            cursor: pointer;
+            background-color: black;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>LED Matrix Controller</h1>
+    <button onclick="connectBLE()">Connect to ESP32</button>
+    <div class="led-grid" id="ledGrid"></div>
+    <div class="controls">
+        <input type="color" id="globalColor" value="#ffffff">
+        <button onclick="toggleAllOn()">All On</button>
+        <button onclick="toggleAllOff()">All Off</button>
+        <button onclick="applyGlobalColor()">Set All Color</button>
+        <button onclick="sendConfiguration()">Send Configuration</button>
+    </div>
+
+    <script>
+        let ledService;
+        const matrixState = Array(100).fill({ color: "#000000", on: false });  // 10x10 LED matrix state
+
+        async function connectBLE() {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32_LED_Controller' }],
+                    optionalServices: ['12345678-1234-1234-1234-123456789abc']
+                });
+                const server = await device.gatt.connect();
+                ledService = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
+                alert("Connected to ESP32 LED Controller");
+            } catch (error) {
+                console.error("Connection failed", error);
+                alert("Failed to connect to ESP32. Please try again.");
+            }
+        }
+
+        // Initialize the LED grid with clickable elements
+        const grid = document.getElementById('ledGrid');
+        for (let i = 0; i < 100; i++) {
+            const led = document.createElement('div');
+            led.classList.add('led');
+            led.dataset.index = i;
+            led.addEventListener('click', () => toggleLED(i));
+            grid.appendChild(led);
+        }
+
+        function toggleLED(index) {
+            const colorPicker = document.getElementById('globalColor');
+            const currentColor = colorPicker.value;
+
+            matrixState[index].on = !matrixState[index].on;  // Toggle on/off state
+            matrixState[index].color = currentColor;  // Set the chosen color
+
+            // Update the grid display
+            const ledElement = document.querySelector(`.led[data-index="${index}"]`);
+            ledElement.style.backgroundColor = matrixState[index].on ? currentColor : 'black';
+        }
+
+        function toggleAllOn() {
+            matrixState.forEach((led, index) => {
+                led.on = true;
+                updateLEDDisplay(index, led.color);
+            });
+        }
+
+        function toggleAllOff() {
+            matrixState.forEach((led, index) => {
+                led.on = false;
+                updateLEDDisplay(index, 'black');
+            });
+        }
+
+        function applyGlobalColor() {
+            const globalColor = document.getElementById('globalColor').value;
+            matrixState.forEach((led, index) => {
+                led.color = globalColor;
+                if (led.on) {
+                    updateLEDDisplay(index, globalColor);
+                }
+            });
+        }
+
+        function updateLEDDisplay(index, color) {
+            const ledElement = document.querySelector(`.led[data-index="${index}"]`);
+            ledElement.style.backgroundColor = color;
+        }
+
+        async function sendConfiguration() {
+            if (!ledService) {
+                alert("Please connect to the ESP32 first.");
+                return;
+            }
+
+            // Prepare the data to send: each LED sends 4 bytes (R, G, B, on/off)
+            const data = new Uint8Array(matrixState.length * 4);
+            matrixState.forEach((led, i) => {
+                const r = parseInt(led.color.slice(1, 3), 16);
+                const g = parseInt(led.color.slice(3, 5), 16);
+                const b = parseInt(led.color.slice(5, 7), 16);
+                data[i * 4] = r;
+                data[i * 4 + 1] = g;
+                data[i * 4 + 2] = b;
+                data[i * 4 + 3] = led.on ? 1 : 0;
+            });
+			
+			    // Log data to verify it is correct before sending
+			console.log("Sending configuration:", data);
+
+            // Send configuration data to ESP32
+            const ledControlCharacteristic = await ledService.getCharacteristic('abcd1234-1234-1234-1234-123456789abc');
+            await ledControlCharacteristic.writeValue(data);
+            alert("Configuration sent to ESP32!");
+        }
+    </script>
+</body>
+</html>
